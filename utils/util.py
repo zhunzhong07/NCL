@@ -45,6 +45,7 @@ def cluster_acc(y_true, y_pred):
   return sum([w[i, j] for i, j in ind]) * 1.0 / y_pred.size
 
 
+
 def cluster_acc_old(y_true, y_pred):
     """
     Calculate clustering accuracy. Require scikit-learn installed
