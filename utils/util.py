@@ -11,7 +11,6 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 # from scipy.optimize import linear_sum_assignment as linear_assignment
 from scipy.optimize import linear_sum_assignment
-from sklearn.utils.linear_assignment_ import linear_assignment
 import random
 import os
 import argparse
@@ -43,7 +42,6 @@ def cluster_acc(y_true, y_pred):
   ind = np.asarray(ind)
   ind = np.transpose(ind)
   return sum([w[i, j] for i, j in ind]) * 1.0 / y_pred.size
-
 
 
 def cluster_acc_old(y_true, y_pred):
