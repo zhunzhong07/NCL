@@ -4,7 +4,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
+from sklearn.cluster import KMeans
+from scipy.spatial import distance
 from sklearn.manifold import TSNE
+from sklearn.manifold import MDS
 import matplotlib
 matplotlib.use('agg')
 import seaborn as sns
@@ -154,3 +157,118 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+class CentroidManager:
+  """Manages the lifecycle of class prototypes (centroids).
+
+  Attributes:
+    centroids: The prototypes vectors.
+    enable_alignment_loss: Controls when to start alignment.
+    current_batch_centroids: The prototypes of classes in the current batch.
+    num_classes: Number of classes to expect.
+    predictions: Class assignment.
+    count: Number of times instances of a class is met.
+    enable_mds_loss: Whether to enable MDS loss or not.
+    equi_dist_centroids: The equi-distant centroids.
+    max_dist: The max distance between the initial centroids.
+  """
+
+  def __init__(self):
+    self.centroids = []
+    self.enable_alignment_loss = False
+    self.current_batch_centroids = []
+    self.equi_dist_centroids = []
+    self.max_dist = 0
+
+  def get_init_status(self):
+    if self.enable_alignment_loss:
+      return True
+    else:
+      return False
+
+  def enable_loss(self):
+    self.enable_alignment_loss = True
+
+  def disable_loss(self):
+    self.enable_alignment_loss = False
+
+  def initialize(self, features, num_classes, enable_mds_loss=True):
+    """Initialize the centroids with the current features."""
+    self.num_classes = num_classes
+    self.enable_mds_loss = enable_mds_loss
+
+    km_model = KMeans(n_clusters=self.num_classes, n_init=20)
+
+    self.predictions = km_model.fit_predict(features)
+    self.centroids = km_model.cluster_centers_
+    self.count = 100 * np.ones(self.num_classes, dtype=np.int)
+
+    if self.enable_mds_loss:
+      self.prepare_equi_dist_centroids(features)
+
+  def prepare_equi_dist_centroids(self, features):
+    """Initialize equi distant centroids with MDS."""
+    distance_weight = 1
+    self.max_dist = distance_weight * distance.pdist(self.centroids).max()
+    distances = self.max_dist * np.ones((self.num_classes, self.num_classes))
+    np.fill_diagonal(distances, 0)
+    print(np.array(features).shape)
+    z_dim = np.array(features).shape[1]
+    self.equi_dist_centroids = MDS(
+        n_components=z_dim,
+        dissimilarity='precomputed').fit(distances).embedding_
+
+  def prepare_targets(self, start_index, end_index):
+    """Prepare targets for each mini-batch."""
+    preds = self.predictions[start_index:end_index]
+    self.current_batch_centroids = self.centroids[preds]
+    return self.current_batch_centroids
+
+  def update_centroids(self, features, start_index, end_index):
+    """Update centroids with each mini-batch features.
+
+    It involves two steps:
+      1) reassignment of the current pseudo labels.
+      2) Updating the class prototypes with the new assignment.
+
+    Args:
+      features: mini-batch features.
+      start_index: Starting index of mini-batch
+      end_index: Ending index of mini-batch
+    """
+    dist = distance.cdist(features, self.centroids)
+    new_assignments = np.argmin(dist, axis=1)
+    self.predictions[start_index:end_index] = new_assignments
+
+    for index in range(features.shape[0]):
+      class_id = new_assignments[index]
+      self.count[class_id] += 1
+      eta = 1.0 / self.count[class_id]
+      if len(self.equi_dist_centroids) > 0:
+        self.centroids[class_id] = self.centroids[class_id] - eta * (
+            self.centroids[class_id] -
+            (features[index] + self.equi_dist_centroids[class_id]))
+      else:
+        self.centroids[class_id] = self.centroids[class_id] + eta * (
+            self.centroids[class_id] + features[index])
+        # self.centroids[class_id] = (
+        #     1 - eta) * self.centroids[class_id] + eta * features[index]
+
+    print('Class count: {}'.format(self.count))
+
+  def reinit_centroids(self, features):
+    km_model = KMeans(
+        n_clusters=self.num_classes, init=self.centroids, n_init=1)
+    self.predictions = km_model.fit_predict(features)
+    self.centroids = km_model.cluster_centers_
+    # if self.enable_mds_loss:
+    #   self.prepare_equi_dist_centroids(features)
+
+  def get(self):
+    return self.centroids
+
+  def get_labels(self, features):
+    dist = distance.cdist(features, self.centroids)
+    labels = np.argmin(dist, axis=1)
+    return labels

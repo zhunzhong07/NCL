@@ -71,16 +71,16 @@ def train(model, train_loader, unlabeled_eval_loader, args):
             consistency_loss = F.mse_loss(prob1, prob1_bar) + F.mse_loss(prob2, prob2_bar)
             loss = loss_ce + loss_bce + w * consistency_loss
 
-            # NCL loss for unlabeled data
-            loss_ncl_ulb = ncl_ulb(feat_q[~mask_lb], feat_k[~mask_lb], label[~mask_lb], epoch, False, ncl_la.memory.clone().detach())
+            # # NCL loss for unlabeled data
+            # loss_ncl_ulb = ncl_ulb(feat_q[~mask_lb], feat_k[~mask_lb], label[~mask_lb], epoch, False, ncl_la.memory.clone().detach())
 
-            # NCL loss for labeled data
-            loss_ncl_la = ncl_la(feat_q[mask_lb], feat_k[mask_lb], label[mask_lb], epoch, True)
+            # # NCL loss for labeled data
+            # loss_ncl_la = ncl_la(feat_q[mask_lb], feat_k[mask_lb], label[mask_lb], epoch, True)
 
-            if epoch > 0:
-                loss += loss_ncl_ulb * args.w_ncl_ulb + loss_ncl_la * args.w_ncl_la
-            else:
-                loss += loss_ncl_la * args.w_ncl_la
+            # if epoch > 0:
+            #     loss += loss_ncl_ulb * args.w_ncl_ulb + loss_ncl_la * args.w_ncl_la
+            # else:
+            #     loss += loss_ncl_la * args.w_ncl_la
 
             # ===================backward=====================
             loss_record.update(loss.item(), x.size(0))
