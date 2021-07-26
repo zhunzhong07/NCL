@@ -10,6 +10,7 @@ matplotlib.use('agg')
 import seaborn as sns
 from matplotlib import pyplot as plt
 # from scipy.optimize import linear_sum_assignment as linear_assignment
+from scipy.optimize import linear_sum_assignment
 from sklearn.utils.linear_assignment_ import linear_assignment
 import random
 import os
@@ -17,7 +18,34 @@ import argparse
 #######################################################
 # Evaluate Critiron
 #######################################################
+
 def cluster_acc(y_true, y_pred):
+  """Returns the clustering accuracy.
+
+  Adapted from https://github.com/k-han/AutoNovel
+  The output of `linear_sum_assignment` is transposed as explained in:
+  https://stackoverflow.com/a/57992848/2006462
+
+  Args:
+    y_true: The ground truth label.
+    y_pred: The predicted label.
+
+  Returns:
+    The clustering accuracy.
+  """
+  y_true = y_true.astype(np.int64)
+  assert y_pred.size == y_true.size
+  d = max(y_pred.max(), y_true.max()) + 1
+  w = np.zeros((d, d), dtype=np.int64)
+  for i in range(y_pred.size):
+    w[y_pred[i], y_true[i]] += 1
+  ind = linear_sum_assignment(w.max() - w)
+  ind = np.asarray(ind)
+  ind = np.transpose(ind)
+  return sum([w[i, j] for i, j in ind]) * 1.0 / y_pred.size
+
+
+def cluster_acc_old(y_true, y_pred):
     """
     Calculate clustering accuracy. Require scikit-learn installed
 
